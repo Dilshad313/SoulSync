@@ -106,6 +106,6 @@ const cabBookingSchema = new mongoose.Schema({
 // Index for efficient querying
 cabBookingSchema.index({ userId: 1, createdAt: -1 });
 cabBookingSchema.index({ status: 1, scheduledTime: 1 });
-cabBookingSchema.index({ pickupLocation.coordinates: '2dsphere' });
+cabBookingSchema.index({ 'pickupLocation.coordinates': '2dsphere' });
 
 module.exports = mongoose.model('CabBooking', cabBookingSchema);

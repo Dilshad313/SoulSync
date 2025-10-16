@@ -33,12 +33,16 @@ router.post('/register', validateRegister, async (req, res) => {
       username,
       password,
       firstName,
-      lastName,
-      role: role || 'patient'
+      lastName
     });
 
-    await user.save();
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    user.role = role || 'patient';
 
+    await user.save();
+    
     // Create JWT token
     const payload = {
       user: {
