@@ -1,7 +1,7 @@
 const express = require('express');
 const { auth } = require('../middleware/auth');
 const AIChatHistory = require('../models/AIChat');
-const OpenAI = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const AssessmentResult = require('../models/Assessment');
 const Appointment = require('../models/Appointment');
 const Prescription = require('../models/Prescription');
@@ -9,18 +9,15 @@ const Course = require('../models/Course');
 
 const router = express.Router();
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize Google AI client
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // @route   POST api/ai/chat
 // @desc    Send message to AI chatbot
 // @access  Private
-router.post('/chat', auth, async (req, res) => {
+router.post('/chat', auth, async (req, res) => {  
+  const { message, botType = 'neha', sessionId } = req.body;
   try {
-    const { message, botType = 'neha', sessionId } = req.body;
-
     // Validate bot type
     if (!['neha', 'gemini'].includes(botType)) {
       return res.status(400).json({ message: 'Invalid bot type' });
@@ -58,60 +55,55 @@ router.post('/chat', auth, async (req, res) => {
       }))
     };
 
-    // Prepare messages for OpenAI
-    const messages = [
-      {
-        role: 'system',
-        content: botType === 'neha' 
-          ? `You are Neha, an empathetic and supportive AI assistant for mental health. 
-             Your role is to listen, provide emotional support, and be a compassionate companion. 
-             Be understanding, encouraging, and offer comfort when needed. 
-             You can suggest journaling, deep breathing, or other self-care techniques. 
-             If the user is in crisis, gently suggest speaking with a professional. 
-             For non-crisis situations, be supportive and acknowledge their feelings.` 
-          : `You are Gemini, an informative AI assistant for the MindSync platform. 
-             Your role is to provide helpful information about appointments, prescriptions, 
-             courses, assessments, and other platform features. Answer questions about 
-             mental health resources, platform navigation, and user account details. 
-             Provide factual information and direct users to appropriate resources.`
-      }
-    ];
+    const systemPrompt = botType === 'neha' 
+      ? `You are Neha, an empathetic and supportive AI assistant for mental health. Your role is to listen, provide emotional support, and be a compassionate companion. Be understanding, encouraging, and offer comfort when needed. You can suggest journaling, deep breathing, or other self-care techniques. If the user is in crisis, gently suggest speaking with a professional. For non-crisis situations, be supportive and acknowledge their feelings.` 
+      : `You are Gemini, an informative AI assistant for the MindSync platform. Your role is to provide helpful information about appointments, prescriptions, courses, assessments, and other platform features. Answer questions about mental health resources, platform navigation, and user account details. Provide factual information and direct users to appropriate resources.`;
 
-    // Add context to messages
-    messages.push({
-      role: 'system',
-      content: `User context: ${JSON.stringify(context)}`
+   // Fetch chat history for the session
+const chatHistory = await AIChatHistory.findOne({ sessionId: currentSessionId });
+const history = chatHistory
+  ? chatHistory.conversation.map(msg => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }]
+    }))
+  : [];
+
+
+
+    // Get AI response from Gemini
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      systemInstruction: `${systemPrompt}
+
+User context: ${JSON.stringify(context)}
+`,
     });
 
-    // Add the user's message
-    messages.push({
-      role: 'user',
-      content: message
+    const chat = model.startChat({
+      history: history,
+      generationConfig: {
+        maxOutputTokens: 500,
+        temperature: botType === 'neha' ? 0.8 : 0.6,
+      },
     });
 
-    // Get AI response
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: messages,
-      max_tokens: 500,
-      temperature: botType === 'neha' ? 0.8 : 0.6 // More creative for Neha, more factual for Gemini
-    });
-
-    const aiResponse = response.choices[0].message.content;
+    const result = await chat.sendMessage(message);
+    const response = await result.response;
+    const aiResponse = response.text();
 
     // Save conversation to history
-    let chatHistory = await AIChatHistory.findOne({ 
+    let conversationRecord = await AIChatHistory.findOne({ 
       userId: req.user.id, 
       sessionId: currentSessionId 
     });
 
-    if (chatHistory) {
-      chatHistory.conversation.push(
+    if (conversationRecord) {
+      conversationRecord.conversation.push(
         { role: 'user', content: message, timestamp: new Date() },
         { role: 'assistant', content: aiResponse, timestamp: new Date() }
       );
     } else {
-      chatHistory = new AIChatHistory({
+      conversationRecord = new AIChatHistory({
         userId: req.user.id,
         botType,
         sessionId: currentSessionId,
@@ -122,7 +114,7 @@ router.post('/chat', auth, async (req, res) => {
       });
     }
 
-    await chatHistory.save();
+    await conversationRecord.save();
 
     res.json({
       response: aiResponse,
@@ -133,7 +125,7 @@ router.post('/chat', auth, async (req, res) => {
   } catch (error) {
     console.error('AI Chat Error:', error);
     
-    // Return a helpful message if API key is not configured
+    // Return a helpful message if API key is invalid or not configured
     if (error.message.includes('401') || error.message.includes('api_key')) {
       const fallbackResponse = botType === 'neha' 
         ? "I'm here to listen. Could you tell me more about how you're feeling? Remember, I'm an AI companion and you might want to speak with a mental health professional for more personalized support."

@@ -35,7 +35,7 @@ MindSync is a comprehensive digital health platform designed to bridge the gap b
 - **MongoDB** with **Mongoose** - Database and ODM
 - **JSON Web Tokens (JWT)** - Authentication
 - **bcryptjs** - Password hashing
-- **OpenAI API** - AI chatbot functionality
+- **Google Gemini API** - AI chatbot functionality
 - **Nodemailer** - Email notifications
 
 ### Frontend
@@ -96,9 +96,10 @@ SoulSync/
    MONGODB_URI=mongodb://localhost:27017/mindsync
    JWT_SECRET=your_jwt_secret_key
    FRONTEND_URL=http://localhost:5173
-   EMAIL_USER=your_email@gmail.com
-   EMAIL_PASS=your_app_password
-   OPENAI_API_KEY=your_openai_api_key
+   # For email notifications (optional)
+   # EMAIL_USER=your_email@gmail.com
+   # EMAIL_PASS=your_app_password
+   GEMINI_API_KEY=your_google_ai_studio_key
    ```
 
 4. Start the backend server:
@@ -195,7 +196,7 @@ JWT_SECRET=your_jwt_secret_key
 FRONTEND_URL=http://localhost:5173
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_app_password
-OPENAI_API_KEY=your_openai_api_key
+GEMINI_API_KEY=your_google_ai_studio_key
 ```
 
 ### Frontend (.env)

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import NotificationService from '../utils/notifications';
+import { useAuth } from '../context/AuthContext';
 
 const ChatPage = () => {
   const [activeBot, setActiveBot] = useState('neha'); // 'neha' or 'gemini'
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
 
   const botConfig = {
@@ -25,6 +26,8 @@ const ChatPage = () => {
     }
   };
 
+  const { isAuthenticated } = useAuth();
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -34,24 +37,38 @@ const ChatPage = () => {
   }, [messages]);
 
   useEffect(() => {
-    // Load chat history for the active bot
-    loadChatHistory();
-  }, [activeBot]);
+    // When the bot switches, reset the session and load its history
+    setSessionId(null);
+    setMessages([]);
+    if (isAuthenticated) {
+      loadChatHistory();
+    }
+  }, [activeBot, isAuthenticated]);
 
   const loadChatHistory = async () => {
+    setLoading(true);
     try {
-      // In a real app, we would fetch from the backend
-      // For now, we'll just initialize with a welcome message
-      const welcomeMessage = {
-        id: 1,
-        text: `Hello! I'm ${botConfig[activeBot].name}, your ${botConfig[activeBot].description.toLowerCase()}. How can I help you today?`,
-        sender: 'bot',
-        timestamp: new Date().toISOString(),
-        botType: activeBot
-      };
-      setMessages([welcomeMessage]);
+      // Fetch the most recent conversation for the active bot
+      const response = await api.get(`/ai/conversations?botType=${activeBot}`);
+      if (response.data && response.data.length > 0) {
+        const lastSession = response.data[0];
+        setSessionId(lastSession.sessionId);
+        const formattedMessages = lastSession.conversation.map(msg => ({
+          id: msg.timestamp, // Or a more unique ID if available
+          text: msg.content,
+          sender: msg.role === 'user' ? 'user' : 'bot',
+          timestamp: msg.timestamp,
+        }));
+        setMessages(formattedMessages);
+      } else {
+        // If no history, start with a welcome message
+        setMessages([{ id: 1, text: `Hello! I'm ${botConfig[activeBot].name}. How can I help you today?`, sender: 'bot', timestamp: new Date().toISOString() }]);
+      }
     } catch (error) {
       console.error('Error loading chat history:', error);
+      NotificationService.error('Could not load chat history.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,62 +76,33 @@ const ChatPage = () => {
     if (!inputMessage.trim()) return;
 
     const userMessage = {
-      id: Date.now(),
+      id: new Date().toISOString(),
       text: inputMessage,
       sender: 'user',
       timestamp: new Date().toISOString(),
       botType: activeBot
     };
 
-    // Add user message to chat
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setLoading(true);
 
     try {
-      // In a real app, we would call the backend API
-      // Simulating response with timeout
-      setTimeout(() => {
-        const botResponse = {
-          id: Date.now() + 1,
-          text: getSimulatedResponse(inputMessage, activeBot),
-          sender: 'bot',
-          timestamp: new Date().toISOString(),
-          botType: activeBot
-        };
-        
-        setMessages(prev => [...prev, botResponse]);
-        setLoading(false);
-      }, 1000);
+      const response = await api.post('/ai/chat', {
+        message: inputMessage,
+        botType: activeBot,
+        sessionId: sessionId,
+      });
+
+      const { response: aiResponse, sessionId: newSessionId } = response.data;
+      setSessionId(newSessionId);
+
+      const botMessage = { id: new Date().toISOString() + '_bot', text: aiResponse, sender: 'bot', timestamp: new Date().toISOString(), botType: activeBot };
+      setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       NotificationService.error('Failed to send message');
+    } finally {
       setLoading(false);
-    }
-  };
-
-  const getSimulatedResponse = (message, botType) => {
-    // This is a simplified simulation
-    // In a real app, we would use AI APIs
-    if (botType === 'neha') {
-      // Neha is empathetic
-      const empatheticResponses = [
-        "I'm here for you. Could you tell me more about how you're feeling?",
-        "That sounds really challenging. I'm listening and want to understand what you're going through.",
-        "Thank you for sharing that with me. How can I support you right now?",
-        "It takes courage to open up. I appreciate you telling me about this.",
-        "I can sense that this is difficult for you. What would be most helpful?"
-      ];
-      return empatheticResponses[Math.floor(Math.random() * empatheticResponses.length)];
-    } else {
-      // Gemini is informative
-      const informativeResponses = [
-        "I can help you with that. Could you provide more details about your question?",
-        "Based on what you've shared, I recommend speaking with a mental health professional.",
-        "That's an important question. Here's what I can tell you about that topic...",
-        "I've found some resources that might be helpful for your situation.",
-        "Let me provide you with some information that could help with your concern."
-      ];
-      return informativeResponses[Math.floor(Math.random() * informativeResponses.length)];
     }
   };
 
