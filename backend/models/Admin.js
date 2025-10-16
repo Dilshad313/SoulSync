@@ -4,9 +4,20 @@ const bcrypt = require('bcryptjs');
 const adminSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'User'
+    // removed unique: true
+  },
+  username: {
+    type: String,
     required: true,
-    unique: true
+    unique: true,
+    trim: true
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6,
+    select: false
   },
   role: {
     type: String,
@@ -31,5 +42,20 @@ const adminSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+adminSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  try {
+    const salt = await bcrypt.genSalt(12);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
 
 module.exports = mongoose.model('Admin', adminSchema);

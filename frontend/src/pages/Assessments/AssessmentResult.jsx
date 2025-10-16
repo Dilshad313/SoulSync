@@ -103,6 +103,24 @@ const AssessmentResult = () => {
           </div>
         </div>
 
+        {/* AI Review */}
+        {result.aiReview && (
+          <div className="bg-white rounded-lg shadow p-6 mb-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">AI Assessment Review</h3>
+            <p className="text-gray-700 whitespace-pre-line">{result.aiReview}</p>
+            {result.aiRecommendations && result.aiRecommendations.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-medium text-gray-900 mb-2">AI Recommendations</h4>
+                <ul className="list-disc list-inside space-y-1">
+                  {result.aiRecommendations.map((rec, idx) => (
+                    <li key={idx} className="text-gray-700">{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Recommendations */}
         {result.recommendations && result.recommendations.length > 0 && (
           <div className="bg-white rounded-lg shadow p-6 mb-8">

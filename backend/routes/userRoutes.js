@@ -36,9 +36,7 @@ router.post('/register', validateRegister, async (req, res) => {
       lastName
     });
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
+    // Let mongoose pre-save hook hash password; only set role here
     user.role = role || 'patient';
 
     await user.save();
@@ -65,7 +63,8 @@ router.post('/register', validateRegister, async (req, res) => {
             username: user.username,
             firstName: user.firstName,
             lastName: user.lastName,
-            role: user.role
+            role: user.role,
+            isEmailVerified: user.isEmailVerified
           }
         });
       }
@@ -83,7 +82,7 @@ router.post('/login', validateLogin, async (req, res) => {
     const { email, password } = req.body;
 
     // Check for user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
@@ -117,7 +116,9 @@ router.post('/login', validateLogin, async (req, res) => {
             firstName: user.firstName,
             lastName: user.lastName,
             role: user.role,
-            profilePicture: user.profilePicture
+            profilePicture: user.profilePicture,
+            isEmailVerified: user.isEmailVerified,
+            isActive: user.isActive
           }
         });
       }

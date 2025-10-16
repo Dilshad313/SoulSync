@@ -20,7 +20,7 @@ const PHQ9Assessment = () => {
     try {
       const response = await api.get(`/assessments/questions/${type}`);
       setQuestions(response.data.questions);
-      setAssessmentName(response.data.name);
+      setAssessmentName(response.data.name || response.data.type);
       // Initialize answers
       const initialAnswers = {};
       response.data.questions.forEach((q, index) => {
@@ -195,7 +195,7 @@ const PHQ9Assessment = () => {
               <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100">
                 <span className="text-sm text-gray-600">Q{index + 1}</span>
                 <span className="text-sm font-medium">
-                  {answers[index] !== undefined ? currentQ.options[answers[index]] : 'Not answered'}
+                  {answers[index] !== undefined ? q.options[answers[index]] : 'Not answered'}
                 </span>
               </div>
             ))}

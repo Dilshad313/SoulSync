@@ -52,6 +52,13 @@ const journalEntrySchema = new mongoose.Schema({
   relatedAppointment: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Appointment'
+  },
+  aiReview: {
+    type: String
+  },
+  aiRecommendations: [String],
+  aiReviewGeneratedAt: {
+    type: Date
   }
 }, {
   timestamps: true

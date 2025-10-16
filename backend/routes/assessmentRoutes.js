@@ -2,7 +2,9 @@ const express = require('express');
 const { auth } = require('../middleware/auth');
 const AssessmentResult = require('../models/Assessment');
 const Course = require('../models/Course');
+const Notification = require('../models/Notification');
 const emailService = require('../utils/emailService');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const router = express.Router();
 
@@ -47,6 +49,9 @@ router.get('/types', auth, (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+// Initialize Google AI client for assessment reviews
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // @route   POST api/assessments/submit
 // @desc    Submit assessment answers
@@ -137,11 +142,20 @@ router.post('/submit', auth, async (req, res) => {
         break;
     }
 
+    // Resolve assessment name if not provided
+    const typeToName = {
+      'PHQ-9': 'Patient Health Questionnaire (PHQ-9)',
+      'GAD-7': 'Generalized Anxiety Disorder (GAD-7)',
+      'DASS-21': 'Depression, Anxiety and Stress Scales (DASS-21)',
+      'PCL-5': 'PTSD Checklist (PCL-5)'
+    };
+    const resolvedAssessmentName = assessmentName || typeToName[assessmentType] || assessmentType;
+
     // Create assessment result
     const assessmentResult = new AssessmentResult({
       userId: req.user.id,
       assessmentType,
-      assessmentName,
+      assessmentName: resolvedAssessmentName,
       totalScore,
       maxScore,
       severity,
@@ -151,6 +165,22 @@ router.post('/submit', auth, async (req, res) => {
     });
 
     await assessmentResult.save();
+
+    // Generate AI review via Gemini
+    try {
+      const prompt = `A user has completed the ${assessmentName} (${assessmentType}).\n\nTotal Score: ${totalScore}/${maxScore}\nSeverity: ${severity}\n\nProvide a concise, supportive clinical-style summary (150-220 words) summarizing likely symptoms and suggested next steps. Then provide 3-5 short bullet recommendations.\n\nReturn a JSON object with keys: "review" (string, no markdown) and "recommendations" (array of strings).`;
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const result = await model.generateContent(prompt);
+      const aiText = result.response.text();
+      const cleaned = aiText.replace(/```json|```/g, '').trim();
+      const aiData = JSON.parse(cleaned);
+      assessmentResult.aiReview = aiData.review;
+      assessmentResult.aiRecommendations = Array.isArray(aiData.recommendations) ? aiData.recommendations : [];
+      assessmentResult.aiReviewGeneratedAt = new Date();
+      await assessmentResult.save();
+    } catch (aiErr) {
+      // Non-fatal: continue without AI review
+    }
 
     // Find relevant courses based on assessment results
     let relatedCourses = [];
@@ -183,12 +213,11 @@ router.post('/submit', auth, async (req, res) => {
     }
 
     // Send email with results if email is verified
-    if (req.user.isEmailVerified) {
+    if (req.user && req.user.isEmailVerified) {
       // await emailService.sendAssessmentResult(assessmentResult, req.user);
     }
 
     // Create notification for user
-    const Notification = require('../models/Notification');
     const notification = new Notification({
       userId: req.user.id,
       title: 'Assessment Results Ready',

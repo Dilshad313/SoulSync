@@ -7,6 +7,9 @@ const Course = require('../models/Course');
 const { ForumPost } = require('../models/Forum');
 const Appointment = require('../models/Appointment');
 const Notification = require('../models/Notification');
+const Admin = require('../models/Admin');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'mindSyncSecretKey';
 
 const router = express.Router();
 
@@ -163,6 +166,33 @@ router.put('/doctors/:id/approve', adminAuth, async (req, res) => {
   }
 });
 
+// @route   POST api/admin/doctors
+// @desc    Create a freelance doctor (with shift option)
+// @access  Private - Admin
+router.post('/doctors', adminAuth, async (req, res) => {
+  try {
+    const { licenseNumber, specialization, qualifications, yearsOfExperience, bio, consultationFee, languages, shift } = req.body;
+    // Create a freelance doctor (not linked to a hospital)
+    const doctor = new Doctor({
+      licenseNumber,
+      specialization,
+      qualifications,
+      yearsOfExperience,
+      bio,
+      consultationFee,
+      languages,
+      hospitalAffiliations: [],
+      shift, // morning or night
+      adminApprovalStatus: 'approved',
+      isAvailable: true
+    });
+    await doctor.save();
+    res.status(201).json({ message: 'Freelance doctor created successfully', doctor });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // @route   GET api/admin/hospitals
 // @desc    Get all hospitals (pending approval)
 // @access  Private - Admin
@@ -183,6 +213,20 @@ router.get('/hospitals', adminAuth, async (req, res) => {
       currentPage: page,
       total
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST api/admin/hospitals
+// @desc    Create a new hospital
+// @access  Private - Admin
+router.post('/hospitals', adminAuth, async (req, res) => {
+  try {
+    const hospitalData = req.body;
+    const hospital = new Hospital(hospitalData);
+    await hospital.save();
+    res.status(201).json({ message: 'Hospital created successfully', hospital });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -373,6 +417,52 @@ router.post('/notifications/send', adminAuth, async (req, res) => {
       message: `Notifications sent successfully to ${notifications.length} users`,
       count: notifications.length 
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST api/admin/register
+// @desc    Register a new admin
+// @access  Public (should be protected in production)
+router.post('/register', async (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+    if (!username || !password || !role) {
+      return res.status(400).json({ message: 'Username, password, and role are required.' });
+    }
+    const existingAdmin = await Admin.findOne({ username });
+    if (existingAdmin) {
+      return res.status(400).json({ message: 'Username already exists.' });
+    }
+    const admin = new Admin({ username, password, role });
+    await admin.save();
+    res.status(201).json({ message: 'Admin registered successfully.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST api/admin/login
+// @desc    Admin login
+// @access  Public
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required.' });
+    }
+    const admin = await Admin.findOne({ username }).select('+password');
+    if (!admin) {
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+    const isMatch = await admin.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+    // Generate JWT token
+    const token = jwt.sign({ id: admin._id, role: 'admin', username: admin.username }, JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token, admin: { username: admin.username, role: admin.role } });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

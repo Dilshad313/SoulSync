@@ -82,6 +82,11 @@ const doctorSchema = new mongoose.Schema({
   emergencyContact: {
     name: String,
     phone: String
+  },
+  shift: {
+    type: String,
+    enum: ['morning', 'night'],
+    default: 'morning'
   }
 }, {
   timestamps: true

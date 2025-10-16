@@ -18,24 +18,16 @@ import JournalPage from './pages/JournalPage';
 import ForumPage from './pages/ForumPage';
 import CoursesPage from './pages/CoursesPage';
 import ChatPage from './pages/ChatPage';
-import CabBookingPage from './pages/CabBookingPage';
 import NotFoundPage from './pages/NotFoundPage';
+import TestSection from './pages/TestSection';
 
 // Assessment sub-pages
 import PHQ9Assessment from './pages/Assessments/PHQ9Assessment';
 import AssessmentResult from './pages/Assessments/AssessmentResult';
 
-// Doctor-specific pages
-import DoctorDashboard from './pages/DoctorDashboard';
-import DoctorProfile from './pages/DoctorProfile';
-import DoctorAppointments from './pages/DoctorAppointments';
-
-// Hospital-specific pages
-import HospitalDashboard from './pages/HospitalDashboard';
-import HospitalProfile from './pages/HospitalProfile';
-
 // Admin pages
 import AdminDashboard from './pages/AdminDashboard';
+import AdminModule from './pages/AdminModule';
 
 function App() {
   return (
@@ -53,7 +45,7 @@ function App() {
               <Route 
                 path="/dashboard" 
                 element={
-                  <PrivateRoute allowedRoles={['patient', 'doctor', 'hospital', 'admin']}>
+                  <PrivateRoute allowedRoles={['patient', 'doctor', 'admin']}>
                     <DashboardPage />
                   </PrivateRoute>
                 } 
@@ -61,7 +53,7 @@ function App() {
               <Route 
                 path="/profile" 
                 element={
-                  <PrivateRoute allowedRoles={['patient', 'doctor', 'hospital', 'admin']}>
+                  <PrivateRoute allowedRoles={['patient', 'doctor', 'admin']}>
                     <ProfilePage />
                   </PrivateRoute>
                 } 
@@ -125,7 +117,7 @@ function App() {
               <Route 
                 path="/forum" 
                 element={
-                  <PrivateRoute allowedRoles={['patient', 'doctor', 'hospital', 'admin']}>
+                  <PrivateRoute allowedRoles={['patient', 'doctor', 'admin']}>
                     <ForumPage />
                   </PrivateRoute>
                 } 
@@ -146,55 +138,13 @@ function App() {
                   </PrivateRoute>
                 } 
               />
+              
+              {/* Test Section Route */}
               <Route 
-                path="/cab-booking" 
+                path="/test" 
                 element={
                   <PrivateRoute allowedRoles={['patient', 'doctor', 'admin']}>
-                    <CabBookingPage />
-                  </PrivateRoute>
-                } 
-              />
-              
-              {/* Doctor Routes */}
-              <Route 
-                path="/doctor/dashboard" 
-                element={
-                  <PrivateRoute allowedRoles={['doctor', 'admin']}>
-                    <DoctorDashboard />
-                  </PrivateRoute>
-                } 
-              />
-              <Route 
-                path="/doctor/profile" 
-                element={
-                  <PrivateRoute allowedRoles={['doctor', 'admin']}>
-                    <DoctorProfile />
-                  </PrivateRoute>
-                } 
-              />
-              <Route 
-                path="/doctor/appointments" 
-                element={
-                  <PrivateRoute allowedRoles={['doctor', 'admin']}>
-                    <DoctorAppointments />
-                  </PrivateRoute>
-                } 
-              />
-              
-              {/* Hospital Routes */}
-              <Route 
-                path="/hospital/dashboard" 
-                element={
-                  <PrivateRoute allowedRoles={['hospital', 'admin']}>
-                    <HospitalDashboard />
-                  </PrivateRoute>
-                } 
-              />
-              <Route 
-                path="/hospital/profile" 
-                element={
-                  <PrivateRoute allowedRoles={['hospital', 'admin']}>
-                    <HospitalProfile />
+                    <TestSection />
                   </PrivateRoute>
                 } 
               />
@@ -203,10 +153,18 @@ function App() {
               <Route 
                 path="/admin/dashboard" 
                 element={
-                  <PrivateRoute allowedRoles={['admin']}>
+                  <PrivateRoute allowedRoles={["admin", "doctor", "patient"]}>
                     <AdminDashboard />
                   </PrivateRoute>
-                } 
+                }
+              />
+              <Route 
+                path="/admin/module" 
+                element={
+                  <PrivateRoute allowedRoles={["admin", "doctor", "patient"]}>
+                    <AdminModule />
+                  </PrivateRoute>
+                }
               />
               
               {/* 404 Route */}

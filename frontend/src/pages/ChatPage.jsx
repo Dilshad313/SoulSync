@@ -10,6 +10,7 @@ const ChatPage = () => {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
+  const messageIdRef = useRef(0);
 
   const botConfig = {
     neha: {
@@ -53,8 +54,8 @@ const ChatPage = () => {
       if (response.data && response.data.length > 0) {
         const lastSession = response.data[0];
         setSessionId(lastSession.sessionId);
-        const formattedMessages = lastSession.conversation.map(msg => ({
-          id: msg.timestamp, // Or a more unique ID if available
+        const formattedMessages = lastSession.conversation.map((msg, index) => ({
+          id: `${msg.timestamp}-${index}`,
           text: msg.content,
           sender: msg.role === 'user' ? 'user' : 'bot',
           timestamp: msg.timestamp,
@@ -62,7 +63,7 @@ const ChatPage = () => {
         setMessages(formattedMessages);
       } else {
         // If no history, start with a welcome message
-        setMessages([{ id: 1, text: `Hello! I'm ${botConfig[activeBot].name}. How can I help you today?`, sender: 'bot', timestamp: new Date().toISOString() }]);
+        setMessages([{ id: `welcome-${Date.now()}`, text: `Hello! I'm ${botConfig[activeBot].name}. How can I help you today?`, sender: 'bot', timestamp: new Date().toISOString() }]);
       }
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -76,7 +77,7 @@ const ChatPage = () => {
     if (!inputMessage.trim()) return;
 
     const userMessage = {
-      id: new Date().toISOString(),
+      id: `${Date.now()}-${messageIdRef.current++}`,
       text: inputMessage,
       sender: 'user',
       timestamp: new Date().toISOString(),
@@ -97,7 +98,7 @@ const ChatPage = () => {
       const { response: aiResponse, sessionId: newSessionId } = response.data;
       setSessionId(newSessionId);
 
-      const botMessage = { id: new Date().toISOString() + '_bot', text: aiResponse, sender: 'bot', timestamp: new Date().toISOString(), botType: activeBot };
+      const botMessage = { id: `${Date.now()}-bot-${messageIdRef.current++}` , text: aiResponse, sender: 'bot', timestamp: new Date().toISOString(), botType: activeBot };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       NotificationService.error('Failed to send message');

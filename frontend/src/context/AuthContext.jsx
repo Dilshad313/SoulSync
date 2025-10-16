@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import api from '../services/api';
+import api, { setAuthToken } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -69,15 +69,26 @@ const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       const token = localStorage.getItem('token');
+      const isAdmin = localStorage.getItem('isAdmin');
       if (token) {
+        if (isAdmin) {
+          // Restore admin session, skip profile fetch
+          dispatch({
+            type: 'LOGIN_SUCCESS',
+            payload: { user: { role: 'admin', username: localStorage.getItem('adminUsername') }, token }
+          });
+          return;
+        }
         try {
           const response = await api.get('/users/profile');
           dispatch({
             type: 'LOGIN_SUCCESS',
-            payload: { user: response.data, token }
+            payload: { user: response.data, token: token }
           });
         } catch (error) {
           localStorage.removeItem('token');
+          localStorage.removeItem('isAdmin');
+          localStorage.removeItem('adminUsername');
           dispatch({ type: 'LOGOUT' });
         }
       }
@@ -93,7 +104,7 @@ const AuthProvider = ({ children }) => {
       const { token, user } = response.data;
       
       localStorage.setItem('token', token);
-      api.setAuthToken(token);
+      setAuthToken(token);
       
       dispatch({
         type: 'LOGIN_SUCCESS',
@@ -118,7 +129,7 @@ const AuthProvider = ({ children }) => {
       const { token, user } = response.data;
       
       localStorage.setItem('token', token);
-      api.setAuthToken(token);
+      setAuthToken(token);
       
       dispatch({
         type: 'REGISTER_SUCCESS',
@@ -142,7 +153,7 @@ const AuthProvider = ({ children }) => {
       const { token, user } = response.data;
       
       localStorage.setItem('token', token);
-      api.setAuthToken(token);
+      setAuthToken(token);
       
       dispatch({
         type: 'LOGIN_SUCCESS',
@@ -160,9 +171,22 @@ const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginAdmin = (adminData, token) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('isAdmin', 'true');
+    localStorage.setItem('adminUsername', adminData.username);
+    api.setAuthToken(token);
+    dispatch({
+      type: 'LOGIN_SUCCESS',
+      payload: { user: { ...adminData, role: 'admin' }, token }
+    });
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
-    api.setAuthToken(null);
+    localStorage.removeItem('isAdmin');
+    localStorage.removeItem('adminUsername');
+    setAuthToken(null);
     dispatch({ type: 'LOGOUT' });
   };
 
@@ -183,6 +207,7 @@ const AuthProvider = ({ children }) => {
   const value = {
     ...state,
     login,
+    loginAdmin,
     register,
     registerAnonymous,
     logout,

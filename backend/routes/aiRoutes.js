@@ -5,7 +5,9 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const AssessmentResult = require('../models/Assessment');
 const Appointment = require('../models/Appointment');
 const Prescription = require('../models/Prescription');
+const JournalEntry = require('../models/Journal');
 const Course = require('../models/Course');
+const TestReview = require('../models/TestReview');
 
 const router = express.Router();
 
@@ -142,6 +144,62 @@ User context: ${JSON.stringify(context)}
   }
 });
 
+// @route   POST api/ai/journal-review
+// @desc    Generate AI review for a journal entry
+// @access  Private
+router.post('/journal-review', auth, async (req, res) => {
+  const { journalId } = req.body;
+
+  if (!journalId) {
+    return res.status(400).json({ message: 'Journal ID is required.' });
+  }
+
+  try {
+    const journalEntry = await JournalEntry.findById(journalId);
+
+    if (!journalEntry) {
+      return res.status(404).json({ message: 'Journal entry not found.' });
+    }
+
+    if (!journalEntry.userId.equals(req.user.id)) {
+      return res.status(403).json({ message: 'You are not authorized to review this journal entry.' });
+    }
+
+    // Prepare prompt for Gemini
+    const prompt = `
+      As an empathetic AI assistant, please review the following journal entry.
+      Provide a supportive and constructive review, and then list 2-3 actionable recommendations.
+      Format your response as a JSON object with two keys: "review" (a string) and "recommendations" (an array of strings).
+
+      Journal Title: "${journalEntry.title}"
+      Journal Content: "${journalEntry.content}"
+      User's Mood: "${journalEntry.mood || 'not specified'}"
+    `;
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(prompt);
+    const aiResponseText = result.response.text();
+
+    // Clean and parse the JSON response from Gemini
+    const cleanedJsonString = aiResponseText.replace(/```json|```/g, '').trim();
+    const aiData = JSON.parse(cleanedJsonString);
+
+    // Update the journal entry with the AI review
+    journalEntry.aiReview = aiData.review;
+    journalEntry.aiRecommendations = aiData.recommendations;
+    journalEntry.aiReviewGeneratedAt = new Date();
+    await journalEntry.save();
+
+    res.json({
+      review: journalEntry.aiReview,
+      recommendations: journalEntry.aiRecommendations
+    });
+  } catch (error) {
+    console.error('Error generating journal review:', error);
+    res.status(500).json({ message: 'Error generating review.', error: error.message });
+  }
+});
+
 // @route   GET api/ai/conversations
 // @desc    Get user's AI conversation history
 // @access  Private
@@ -246,6 +304,45 @@ router.get('/suggestions', auth, async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST api/ai/test-review
+// @desc    Submit MCQ answers, get Gemini review, store in DB
+// @access  Private
+router.post('/test-review', auth, async (req, res) => {
+  const { answers } = req.body;
+  if (!answers || typeof answers !== 'object') {
+    return res.status(400).json({ message: 'Answers required.' });
+  }
+  try {
+    // Prepare prompt for Gemini
+    const prompt = `A user submitted the following mental health MCQ answers: ${JSON.stringify(answers)}. Please provide a short, supportive review and feedback.`;
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(prompt);
+    const review = result.response.text();
+    // Store review in DB
+    const testReview = new TestReview({
+      userId: req.user.id,
+      answers,
+      review
+    });
+    await testReview.save();
+    res.json({ review });
+  } catch (err) {
+    res.status(500).json({ message: 'Error generating review.' });
+  }
+});
+
+// @route   GET api/ai/my-reviews
+// @desc    Get user's past MCQ reviews
+// @access  Private
+router.get('/my-reviews', auth, async (req, res) => {
+  try {
+    const reviews = await TestReview.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    res.json({ reviews });
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching reviews.' });
   }
 });
 

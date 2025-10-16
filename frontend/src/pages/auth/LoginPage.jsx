@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import NotificationService from '../../utils/notifications';
+import api from '../../services/api';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    username: '' // Add username for admin login
   });
   const [loading, setLoading] = useState(false);
+  const [loginType, setLoginType] = useState('user');
   
-  const { login } = useAuth();
+  const { login, loginAdmin } = useAuth();
   const navigate = useNavigate();
 
   const onChange = (e) => {
@@ -21,17 +24,29 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      const result = await login(formData.email, formData.password);
-      if (result.success) {
-        navigate('/dashboard');
-      } else {
-        NotificationService.error(result.message);
+    if (loginType === 'admin') {
+      try {
+        const res = await api.post('/admin/login', { username: formData.username, password: formData.password });
+        loginAdmin(res.data.admin, res.data.token);
+        window.location.href = '/admin/module';
+      } catch (err) {
+        NotificationService.error('Invalid admin credentials');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      NotificationService.error('An error occurred during login');
-    } finally {
-      setLoading(false);
+    } else {
+      try {
+        const result = await login(formData.email, formData.password);
+        if (result.success) {
+          navigate('/dashboard');
+        } else {
+          NotificationService.error(result.message);
+        }
+      } catch (error) {
+        NotificationService.error('An error occurred during login');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -44,38 +59,58 @@ const LoginPage = () => {
         </div>
 
         <form onSubmit={onSubmit} className="space-y-6">
+          <div className="flex justify-center mb-4">
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-l-lg border ${loginType === 'user' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              onClick={() => setLoginType('user')}
+            >
+              User
+            </button>
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-r-lg border ${loginType === 'admin' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              onClick={() => setLoginType('admin')}
+            >
+              Admin
+            </button>
+          </div>
+          {loginType === 'admin' && (
+            <div>
+              <label className="block text-gray-700 mb-2">Username</label>
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={onChange}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:border-indigo-500"
+                required
+              />
+            </div>
+          )}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
-            </label>
+            <label className="block text-gray-700 mb-2">Email</label>
             <input
               type="email"
               name="email"
-              id="email"
-              required
               value={formData.email}
               onChange={onChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your email"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:border-indigo-500"
+              required={loginType === 'user'}
+              disabled={loginType === 'admin'}
             />
           </div>
-
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+            <label className="block text-gray-700 mb-2">Password</label>
             <input
               type="password"
               name="password"
-              id="password"
-              required
               value={formData.password}
               onChange={onChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your password"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:border-indigo-500"
+              required
             />
           </div>
-
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input

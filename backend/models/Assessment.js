@@ -38,6 +38,12 @@ const assessmentResultSchema = new mongoose.Schema({
     maxlength: 1000
   },
   recommendations: [String],
+  aiReview: {
+    type: String,
+    maxlength: 2000
+  },
+  aiRecommendations: [String],
+  aiReviewGeneratedAt: Date,
   completedAt: {
     type: Date,
     default: Date.now
