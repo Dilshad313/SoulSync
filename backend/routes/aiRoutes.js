@@ -334,6 +334,50 @@ router.post('/test-review', auth, async (req, res) => {
   }
 });
 
+// @route   GET api/ai/journals-review
+// @desc    Generate AI summary and recommendations from last 30 days journals
+// @access  Private
+router.get('/journals-review', auth, async (req, res) => {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.json({ summary: null, recommendations: [] });
+    }
+
+    // Collect user's last 30 days entries
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const entries = await JournalEntry.find({
+      userId: req.user.id,
+      createdAt: { $gte: thirtyDaysAgo }
+    }).sort({ createdAt: 1 });
+
+    if (!entries || entries.length === 0) {
+      return res.json({ summary: null, recommendations: [] });
+    }
+
+    const timeline = entries.map(e => ({
+      date: e.createdAt,
+      mood: e.mood,
+      tags: e.tags,
+      triggers: e.triggers,
+      gratitude: e.gratitude,
+      activities: e.activities,
+      excerpt: (e.content || '').slice(0, 200)
+    }));
+
+    const prompt = `You are a mental health assistant. Analyze the following last-30-days journal timeline and provide:\n1) A concise supportive insights summary (140-220 words) describing trends over time (mood patterns, common triggers, coping usage, gratitude frequency), and gentle guidance.\n2) 4 short, actionable recommendations tailored to the trends.\nReturn strict JSON with keys: "summary" (string) and "recommendations" (array of strings). Do not include markdown.\n\nTimeline JSON: ${JSON.stringify(timeline)}`;
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    const ai = JSON.parse(cleaned);
+    return res.json({ summary: ai.summary || null, recommendations: Array.isArray(ai.recommendations) ? ai.recommendations : [] });
+  } catch (error) {
+    return res.json({ summary: null, recommendations: [] });
+  }
+});
+
 // @route   GET api/ai/my-reviews
 // @desc    Get user's past MCQ reviews
 // @access  Private

@@ -25,9 +25,28 @@ const JournalPage = () => {
       if (activeTab === 'entries') {
         const response = await api.get('/journals/my-entries');
         setEntries(response.data.entries);
+        // Refresh insights in background so Insights tab stays current
+        try {
+          const [baseRes, aiRes] = await Promise.all([
+            api.get('/journals/insights'),
+            api.get('/ai/journals-review')
+          ]);
+          setInsights({
+            ...baseRes.data,
+            aiSummary: aiRes.data.summary,
+            aiRecommendations: aiRes.data.recommendations
+          });
+        } catch {}
       } else if (activeTab === 'insights') {
-        const response = await api.get('/journals/insights');
-        setInsights(response.data);
+        const [baseRes, aiRes] = await Promise.all([
+          api.get('/journals/insights'),
+          api.get('/ai/journals-review')
+        ]);
+        setInsights({
+          ...baseRes.data,
+          aiSummary: aiRes.data.summary,
+          aiRecommendations: aiRes.data.recommendations
+        });
       }
     } catch (error) {
       NotificationService.error('Failed to load journal data');
@@ -64,9 +83,21 @@ const JournalPage = () => {
       });
       
       // Refresh entries
-      if (activeTab === 'entries') {
-        fetchJournalData();
-      }
+      // Always refresh entries and insights after creating an entry
+      const updated = await api.get('/journals/my-entries');
+      setEntries(updated.data.entries);
+      try {
+        const [baseRes, aiRes] = await Promise.all([
+          api.get('/journals/insights'),
+          api.get('/ai/journals-review')
+        ]);
+        setInsights({
+          ...baseRes.data,
+          aiSummary: aiRes.data.summary,
+          aiRecommendations: aiRes.data.recommendations
+        });
+      } catch {}
+      if (activeTab !== 'entries') setActiveTab('entries');
     } catch (error) {
       NotificationService.error('Failed to create journal entry');
     }
@@ -394,6 +425,26 @@ const JournalPage = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* AI Insights */}
+                {(insights.aiSummary || (insights.aiRecommendations && insights.aiRecommendations.length > 0)) && (
+                  <div className="bg-white rounded-lg shadow p-6 md:col-span-2">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Insights</h3>
+                    {insights.aiSummary && (
+                      <p className="text-gray-700 mb-4 whitespace-pre-line">{insights.aiSummary}</p>
+                    )}
+                    {insights.aiRecommendations && insights.aiRecommendations.length > 0 && (
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-2">Recommendations</h4>
+                        <ul className="list-disc list-inside space-y-1">
+                          {insights.aiRecommendations.map((rec, idx) => (
+                            <li key={idx} className="text-gray-700">{rec}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-12">

@@ -15,6 +15,7 @@ import AppointmentsPage from './pages/AppointmentsPage';
 import PrescriptionsPage from './pages/PrescriptionsPage';
 import AssessmentsPage from './pages/AssessmentsPage';
 import JournalPage from './pages/JournalPage';
+import JournalDetail from './pages/JournalDetail';
 import ForumPage from './pages/ForumPage';
 import CoursesPage from './pages/CoursesPage';
 import ChatPage from './pages/ChatPage';
@@ -111,6 +112,14 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={['patient', 'doctor', 'admin']}>
                     <JournalPage />
+                  </PrivateRoute>
+                } 
+              />
+              <Route 
+                path="/journal/:id" 
+                element={
+                  <PrivateRoute allowedRoles={['patient', 'doctor', 'admin']}>
+                    <JournalDetail />
                   </PrivateRoute>
                 } 
               />
